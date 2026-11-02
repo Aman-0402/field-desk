@@ -15,7 +15,6 @@ import {
   ActivityList,
   date,
   Empty,
-  Metric,
   money,
   PageHeader,
   Status,
@@ -48,6 +47,10 @@ export function OrderDetailPage() {
   const dispatched = shipments.some((shipment) => shipment.dispatched_at);
   const canceled = order.status === 'CANCELLED';
   const open = lines.reduce((sum, line) => sum + line.open, 0);
+  const ordered = lines.reduce((sum, line) => sum + line.qty, 0);
+  const delivered = lines.reduce((sum, line) => sum + line.delivered, 0);
+  const canceledUnits = lines.reduce((sum, line) => sum + line.canceled, 0);
+  const returnedUnits = lines.reduce((sum, line) => sum + line.returned, 0);
   const ready = Boolean(account.data) && !record.loading && !account.loading;
   return (
     <div className="space-y-6">
@@ -118,17 +121,17 @@ export function OrderDetailPage() {
             </Button>
           )}
       </PageHeader>
-      <Card>
+      <Card className="overflow-hidden">
         <div className="grid gap-5 p-5 sm:grid-cols-2 xl:grid-cols-4">
-          <div>
+          <div className="min-w-0">
             <p className="text-xs text-muted-foreground">Customer</p>
             <Link
-              className="mt-1 block font-medium text-primary hover:underline"
+              className="mt-1 block truncate font-medium text-primary hover:underline"
               to={`/customers/${order.customer_id}`}
             >
               {customer?.name ?? 'View customer'}
             </Link>
-            <p className="mt-1 text-xs text-muted-foreground">
+            <p className="mt-0.5 text-xs text-muted-foreground">
               {customer?.code}
             </p>
           </div>
@@ -144,7 +147,7 @@ export function OrderDetailPage() {
           </div>
           <div>
             <p className="text-xs text-muted-foreground">Order value</p>
-            <p className="mt-1 font-semibold tabular-nums">
+            <p className="mt-1 text-xl font-semibold tracking-tight tabular-nums">
               {money(
                 lines.reduce(
                   (sum, line) => sum + line.qty * line.unitPricePaise,
@@ -152,27 +155,55 @@ export function OrderDetailPage() {
                 ),
               )}
             </p>
-            <p className="mt-1 text-xs text-muted-foreground">
+            <p className="mt-0.5 text-xs text-muted-foreground">
               Before cancellations and returns
             </p>
           </div>
         </div>
+        <div className="space-y-3 border-t bg-slate-50/60 px-5 py-4">
+          <div className="flex flex-wrap items-baseline justify-between gap-2 text-sm">
+            <p className="font-medium">Fulfillment progress</p>
+            <p className="text-muted-foreground tabular-nums">
+              {delivered} of {ordered} units delivered
+            </p>
+          </div>
+          <div
+            className="progress-track"
+            role="img"
+            aria-label={`${delivered} delivered, ${canceledUnits} canceled, ${open} still to ship, of ${ordered} ordered units`}
+          >
+            <span
+              className="bg-emerald-500"
+              style={{ width: `${(delivered / (ordered || 1)) * 100}%` }}
+            />
+            <span
+              className="bg-slate-300"
+              style={{ width: `${(canceledUnits / (ordered || 1)) * 100}%` }}
+            />
+          </div>
+          <dl className="flex flex-wrap gap-x-6 gap-y-1 text-xs text-muted-foreground tabular-nums">
+            <div className="flex items-center gap-1.5">
+              <span className="size-2 rounded-full bg-emerald-500" />
+              <dt>Delivered</dt>
+              <dd className="font-medium text-foreground">{delivered}</dd>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="size-2 rounded-full bg-slate-300" />
+              <dt>Canceled</dt>
+              <dd className="font-medium text-foreground">{canceledUnits}</dd>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="size-2 rounded-full bg-muted ring-1 ring-border" />
+              <dt>Unshipped</dt>
+              <dd className="font-medium text-foreground">{open}</dd>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <dt>Returned</dt>
+              <dd className="font-medium text-foreground">{returnedUnits}</dd>
+            </div>
+          </dl>
+        </div>
       </Card>
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Metric
-          label="Ordered units"
-          value={lines.reduce((sum, line) => sum + line.qty, 0)}
-        />
-        <Metric
-          label="Delivered units"
-          value={lines.reduce((sum, line) => sum + line.delivered, 0)}
-        />
-        <Metric label="Unshipped units" value={open} />
-        <Metric
-          label="Canceled / returned"
-          value={`${lines.reduce((sum, line) => sum + line.canceled, 0)} / ${lines.reduce((sum, line) => sum + line.returned, 0)}`}
-        />
-      </div>
       <Card className="overflow-hidden">
         <Tabs
           items={[

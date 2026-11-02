@@ -24,6 +24,7 @@ import {
   PageHeader,
   Pager,
   SearchInput,
+  StatStrip,
   Table,
   Tabs,
   useTablePage,
@@ -58,6 +59,22 @@ export function CustomersPage() {
         )}
       </PageHeader>
       <WorkspaceState>
+        <StatStrip
+          items={[
+            { label: 'Customers', value: data?.customers.length ?? 0 },
+            { label: 'Sales orders', value: data?.orders.length ?? 0 },
+            {
+              label: 'Open orders',
+              value: (data?.orders ?? []).filter(
+                (row) =>
+                  !['DELIVERED', 'CANCELLED'].includes(
+                    row.fulfillmentStatus ?? '',
+                  ),
+              ).length,
+            },
+            { label: 'Products', value: data?.skus.length ?? 0 },
+          ]}
+        />
         <Card className="overflow-hidden">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b p-5">
             <SearchInput

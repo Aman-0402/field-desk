@@ -24,6 +24,7 @@ import {
   Pager,
   paise,
   SearchInput,
+  StatStrip,
   StatusFilter,
   Table,
   useTablePage,
@@ -44,6 +45,8 @@ export function OrdersPage() {
         .includes(search.toLowerCase()),
   );
   const page = useTablePage(orders, `${search}:${status}:${fulfillment}`);
+  const count = (value: string) =>
+    (data?.orders ?? []).filter((row) => row.status === value).length;
   return (
     <div className="space-y-6">
       <PageHeader
@@ -60,6 +63,27 @@ export function OrdersPage() {
         )}
       </PageHeader>
       <WorkspaceState>
+        <StatStrip
+          items={[
+            { label: 'All orders', value: data?.orders.length ?? 0 },
+            {
+              label: 'Awaiting approval',
+              value: count('PENDING') + count('REAPPROVAL_REQUIRED'),
+            },
+            { label: 'Approved', value: count('APPROVED') },
+            {
+              label: 'In delivery',
+              value: (data?.orders ?? []).filter((row) =>
+                [
+                  'LOADING',
+                  'PARTIALLY_DISPATCHED',
+                  'DISPATCHED',
+                  'PARTIALLY_DELIVERED',
+                ].includes(row.fulfillmentStatus ?? ''),
+              ).length,
+            },
+          ]}
+        />
         <Card className="overflow-hidden">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b p-5">
             <SearchInput

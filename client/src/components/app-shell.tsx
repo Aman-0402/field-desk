@@ -13,6 +13,7 @@ import {
 import { ROLE_LABELS } from '@crm/shared/roles';
 import { Brand } from './brand';
 import { Button } from './ui/button';
+import { ThemeToggle } from './theme-toggle';
 import { NativeSelect } from './ui/native-select';
 import { ErrorNotice } from './feedback';
 import { useAuthStore } from '@/store/auth-store';
@@ -64,6 +65,7 @@ export function AppShell() {
         <Link to="/customers">
           <Brand />
         </Link>
+        <ThemeToggle className="ml-auto" />
         <Button
           variant="ghost"
           size="icon"
@@ -104,8 +106,9 @@ export function AppShell() {
               onClick={() => setMenuOpen(false)}
               className={({ isActive }) =>
                 cn(
-                  'flex items-center gap-3 rounded-md px-3 py-2.5 text-sm text-muted-foreground hover:bg-muted hover:text-foreground',
-                  isActive && 'bg-blue-50 font-medium text-primary',
+                  'relative flex items-center gap-3 rounded-md px-3 py-2.5 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground',
+                  isActive &&
+                    'bg-blue-50 font-medium text-primary before:absolute before:inset-y-2 before:-left-4 before:w-1 before:rounded-r before:bg-primary',
                 )
               }
             >
@@ -126,6 +129,7 @@ export function AppShell() {
                 {ROLE_LABELS[user.role]}
               </p>
             </div>
+            <ThemeToggle className="max-lg:hidden" />
             <Button
               aria-label="Sign out"
               title="Sign out"
@@ -140,43 +144,48 @@ export function AppShell() {
         </div>
       </aside>
       <div className="lg:pl-56">
-        <div className="flex min-h-16 flex-wrap items-center justify-between gap-3 border-b bg-white px-5 py-3 lg:px-8">
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <span>CRM</span>
-            <ChevronRight className="size-3" />
-            <span className="text-foreground">{title}</span>
-          </div>
-          {user.role === 'ADMIN' && data ? (
-            <div className="flex items-center gap-2">
-              <label
-                htmlFor="acting-staff"
-                className="text-xs text-muted-foreground"
-              >
-                Working as
-              </label>
-              <NativeSelect
-                id="acting-staff"
-                aria-label="Working as"
-                className="h-8 max-w-56 bg-white text-xs"
-                value={actor.id}
-                onChange={(event) =>
-                  useCrmStore.getState().selectActor(event.target.value)
-                }
-              >
-                {data.actors.map((row) => (
-                  <option value={row.id} key={row.id}>
-                    {row.name} · {ROLE_LABELS[row.role]}
-                  </option>
-                ))}
-              </NativeSelect>
+        <div className="sticky top-0 z-10 border-b bg-white/85 backdrop-blur">
+          <div className="mx-auto flex min-h-16 w-full max-w-[1450px] flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-5 lg:px-8">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <span>CRM</span>
+              <ChevronRight className="size-3" />
+              <span className="text-foreground">{title}</span>
             </div>
-          ) : (
-            <span className="text-xs text-muted-foreground">
-              {ROLE_LABELS[user.role]}
-            </span>
-          )}
+            {user.role === 'ADMIN' && data ? (
+              <div className="flex items-center gap-2">
+                <label
+                  htmlFor="acting-staff"
+                  className="text-xs text-muted-foreground"
+                >
+                  Working as
+                </label>
+                <NativeSelect
+                  id="acting-staff"
+                  aria-label="Working as"
+                  className="h-8 max-w-56 bg-white text-xs"
+                  value={actor.id}
+                  onChange={(event) =>
+                    useCrmStore.getState().selectActor(event.target.value)
+                  }
+                >
+                  {data.actors.map((row) => (
+                    <option value={row.id} key={row.id}>
+                      {row.name} · {ROLE_LABELS[row.role]}
+                    </option>
+                  ))}
+                </NativeSelect>
+              </div>
+            ) : (
+              <span className="text-xs text-muted-foreground">
+                {ROLE_LABELS[user.role]}
+              </span>
+            )}
+          </div>
         </div>
-        <main id="main" className="mx-auto max-w-[1440px] p-5 lg:p-8">
+        <main
+          id="main"
+          className="mx-auto w-full max-w-[1450px] min-w-0 p-4 sm:p-5 lg:p-8"
+        >
           {notice && (
             <div
               role="status"
@@ -199,7 +208,9 @@ export function AppShell() {
               <ErrorNotice message={crmError} />
             </div>
           )}
-          <Outlet />
+          <div key={location.pathname} className="page-enter">
+            <Outlet />
+          </div>
         </main>
       </div>
     </div>

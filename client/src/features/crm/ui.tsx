@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
 import { NativeSelect } from '@/components/ui/native-select';
 import { ErrorNotice, Loading } from '@/components/feedback';
+import { cn } from '@/lib/utils';
 import { useCrm } from './context';
 
 export function money(value: number) {
@@ -56,18 +57,34 @@ const labels: Record<string, string> = {
   VOIDED: 'Voided',
 };
 export function Status({ value }: { value: string }) {
+  const tone =
+    value === 'APPROVED' || value === 'DELIVERED'
+      ? 'good'
+      : value === 'REJECTED' || value === 'CANCELLED' || value === 'VOIDED'
+        ? 'muted'
+        : value === 'PENDING' || value === 'REAPPROVAL_REQUIRED'
+          ? 'warn'
+          : 'info';
   return (
     <Badge
-      className={
-        value === 'APPROVED' || value === 'DELIVERED'
-          ? 'bg-emerald-50 text-emerald-700'
-          : value === 'REJECTED' || value === 'CANCELLED' || value === 'VOIDED'
-            ? 'bg-slate-100 text-slate-600'
-            : value === 'PENDING' || value === 'REAPPROVAL_REQUIRED'
-              ? 'bg-amber-50 text-amber-800'
-              : 'bg-blue-50 text-blue-700'
-      }
+      className={cn(
+        'gap-1.5 rounded-full px-2.5 ring-1 ring-inset',
+        tone === 'good' && 'bg-emerald-50 text-emerald-800 ring-emerald-200',
+        tone === 'muted' && 'bg-slate-100 text-slate-700 ring-slate-200',
+        tone === 'warn' && 'bg-amber-50 text-amber-900 ring-amber-200',
+        tone === 'info' && 'bg-blue-50 text-blue-800 ring-blue-200',
+      )}
     >
+      <span
+        aria-hidden
+        className={cn(
+          'size-1.5 rounded-full',
+          tone === 'good' && 'bg-emerald-500',
+          tone === 'muted' && 'bg-slate-400',
+          tone === 'warn' && 'bg-amber-500',
+          tone === 'info' && 'bg-blue-500',
+        )}
+      />
       {labels[value] ?? value.replaceAll('_', ' ').toLowerCase()}
     </Badge>
   );
@@ -160,6 +177,29 @@ export function Metric({
       <p className="text-xs font-medium text-muted-foreground">{label}</p>
       <p className="mt-2 text-2xl font-semibold tabular-nums">{value}</p>
       {hint && <p className="mt-1 text-xs text-muted-foreground">{hint}</p>}
+    </Card>
+  );
+}
+export function StatStrip({
+  items,
+}: {
+  items: Array<{ label: string; value: ReactNode; hint?: string }>;
+}) {
+  return (
+    <Card className="grid grid-cols-2 divide-x divide-y overflow-hidden lg:grid-cols-4 lg:divide-y-0">
+      {items.map((item) => (
+        <div key={item.label} className="min-w-0 px-5 py-4">
+          <p className="text-xs font-medium text-muted-foreground">
+            {item.label}
+          </p>
+          <p className="mt-1.5 truncate text-2xl font-semibold tracking-tight tabular-nums">
+            {item.value}
+          </p>
+          {item.hint && (
+            <p className="mt-0.5 text-xs text-muted-foreground">{item.hint}</p>
+          )}
+        </div>
+      ))}
     </Card>
   );
 }

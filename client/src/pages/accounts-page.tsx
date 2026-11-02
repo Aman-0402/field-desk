@@ -11,6 +11,7 @@ import {
   PageHeader,
   Pager,
   SearchInput,
+  StatStrip,
   Table,
   useTablePage,
 } from '@/features/crm/ui';
@@ -24,6 +25,9 @@ export function AccountsPage() {
       .includes(search.toLowerCase()),
   );
   const page = useTablePage(accounts, search);
+  const sum = (
+    key: 'outstandingPaise' | 'unappliedCashPaise' | 'creditsOpenPaise',
+  ) => (data ?? []).reduce((total, row) => total + row[key], 0);
   return (
     <div className="space-y-6">
       <PageHeader
@@ -39,61 +43,76 @@ export function AccountsPage() {
       ) : !data ? (
         <Loading />
       ) : (
-        <Card className="overflow-hidden">
-          <div className="border-b p-5">
-            <SearchInput
-              value={search}
-              onChange={setSearch}
-              placeholder="Search customer accounts…"
-            />
-          </div>
-          {accounts.length ? (
-            <Table
-              columns={[
-                'Customer',
-                'Code',
-                'Outstanding',
-                'Unapplied cash',
-                'Open credits',
-                'Net balance',
-                '',
-              ]}
-            >
-              {page.rows.map((row) => (
-                <tr key={row.customer.id}>
-                  <td>
-                    <Link
-                      className="font-medium text-primary hover:underline"
-                      to={`/customers/${row.customer.id}?tab=account`}
-                    >
-                      {row.customer.name}
-                    </Link>
-                  </td>
-                  <td>{row.customer.code}</td>
-                  <td>{money(row.outstandingPaise)}</td>
-                  <td>{money(row.unappliedCashPaise)}</td>
-                  <td>{money(row.creditsOpenPaise)}</td>
-                  <td className="font-medium">{money(row.netBalancePaise)}</td>
-                  <td>
-                    <Link
-                      className="whitespace-nowrap text-primary hover:underline"
-                      to={`/customers/${row.customer.id}?tab=account`}
-                    >
-                      View account
-                    </Link>
-                  </td>
-                </tr>
-              ))}
-            </Table>
-          ) : (
-            <Empty title="No customer accounts found" />
-          )}
-          <Pager
-            page={page.page}
-            count={accounts.length}
-            onPage={page.setPage}
+        <>
+          <StatStrip
+            items={[
+              { label: 'Customers', value: data.length },
+              { label: 'Outstanding', value: money(sum('outstandingPaise')) },
+              {
+                label: 'Unapplied cash',
+                value: money(sum('unappliedCashPaise')),
+              },
+              { label: 'Open credits', value: money(sum('creditsOpenPaise')) },
+            ]}
           />
-        </Card>
+          <Card className="overflow-hidden">
+            <div className="border-b p-5">
+              <SearchInput
+                value={search}
+                onChange={setSearch}
+                placeholder="Search customer accounts…"
+              />
+            </div>
+            {accounts.length ? (
+              <Table
+                columns={[
+                  'Customer',
+                  'Code',
+                  'Outstanding',
+                  'Unapplied cash',
+                  'Open credits',
+                  'Net balance',
+                  '',
+                ]}
+              >
+                {page.rows.map((row) => (
+                  <tr key={row.customer.id}>
+                    <td>
+                      <Link
+                        className="font-medium text-primary hover:underline"
+                        to={`/customers/${row.customer.id}?tab=account`}
+                      >
+                        {row.customer.name}
+                      </Link>
+                    </td>
+                    <td>{row.customer.code}</td>
+                    <td>{money(row.outstandingPaise)}</td>
+                    <td>{money(row.unappliedCashPaise)}</td>
+                    <td>{money(row.creditsOpenPaise)}</td>
+                    <td className="font-medium">
+                      {money(row.netBalancePaise)}
+                    </td>
+                    <td>
+                      <Link
+                        className="whitespace-nowrap text-primary hover:underline"
+                        to={`/customers/${row.customer.id}?tab=account`}
+                      >
+                        View account
+                      </Link>
+                    </td>
+                  </tr>
+                ))}
+              </Table>
+            ) : (
+              <Empty title="No customer accounts found" />
+            )}
+            <Pager
+              page={page.page}
+              count={accounts.length}
+              onPage={page.setPage}
+            />
+          </Card>
+        </>
       )}
     </div>
   );
