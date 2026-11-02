@@ -384,6 +384,8 @@ export const activityLabels: Record<string, string> = {
   REVERSE_CREDIT_APPLICATION: 'Credit application reversed',
   REVERSE_CREDIT_REFUND: 'Refund reversed',
   CORRECT_DISPATCHED_ORDER: 'Shipment correction recorded',
+  CORRECT_DELIVERY: 'Delivery corrected',
+  MOVE_PAYMENT: 'Payment moved',
 };
 export function ActivityList({ events }: { events: EventRow[] }) {
   if (!events.length) return <Empty title="No activity yet" />;

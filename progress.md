@@ -20,6 +20,7 @@ Started: 2026-11-02. Original deadline: 2026-10-31 (late-submission status to be
 - [x] FDSK-170: correct overstated delivery confirmation
 - [ ] (skipped, documented) Bonus: second solution with different framework/business tradeoff
 - [x] Evaluator_notes.md (with time spent)
+- [x] UI forms for both commands (docs/demo screenshots)
 - [ ] Export agent chat history
 - [ ] Add collaborators: atul@patcorn.in, srijan_sahay@patcorn.in, prince@patcorn.in
 - [ ] Submit repo link on Google Form

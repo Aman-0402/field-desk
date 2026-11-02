@@ -81,3 +81,9 @@ Forms show validation and business errors without closing. If another activity c
 - [Verification](verification.md)
 - [Development setup](../CONTRIBUTING.md)
 - [Architecture](architecture.md)
+
+## Correcting mistakes
+
+**Correct delivery (KAM or Admin).** On an order's **Shipments** tab, choose **Correct delivery** when more units were marked delivered than arrived. Enter the quantity that actually arrived. The charge is reduced, extra payment becomes unapplied cash, and the shipment returns to Dispatched until the rest is confirmed.
+
+**Move payment (Accounts or Admin).** On a customer's **Payments & credits, Payments** tab, choose **Move** next to a payment recorded against the wrong customer, pick the right customer and give a reason. Both accounts are recalculated; the original entry stays in history marked as moved. A payment that funds a credit note cannot be moved.

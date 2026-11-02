@@ -29,6 +29,8 @@ const titles: Partial<Record<CommandType, string>> = {
   CANCEL_REMAINDER: 'Cancel unshipped items',
   RECORD_RETURN: 'Record a return',
   CORRECT_DISPATCHED_ORDER: 'Record shipment correction',
+  CORRECT_DELIVERY: 'Correct delivery',
+  MOVE_PAYMENT: 'Move payment',
   RECEIVE_CUSTOMER_PAYMENT: 'Record payment',
   ALLOCATE_PAYMENT: 'Allocate available cash',
   REDEEM_POINTS: 'Redeem reward points',
@@ -73,6 +75,8 @@ export function ActivityDialog({
     'REVERSE_CREDIT_APPLICATION',
     'REVERSE_CREDIT_REFUND',
     'CORRECT_DISPATCHED_ORDER',
+    'CORRECT_DELIVERY',
+    'MOVE_PAYMENT',
   ].includes(type);
   const amountNeeded = [
     'RECEIVE_CUSTOMER_PAYMENT',
@@ -125,6 +129,23 @@ export function ActivityDialog({
               })),
             )
             .filter((line) => line.limit > 0);
+  const correctionRows =
+    type === 'CORRECT_DELIVERY'
+      ? (shipment?.lines ?? [])
+          .filter((line) => line.delivered > line.returned)
+          .map((line) => ({
+            id: line.id,
+            label:
+              data?.skus.find((sku) => sku.id === line.sku_id)?.name ??
+              'Product',
+            delivered: line.delivered,
+            returned: line.returned,
+          }))
+      : [];
+  const movedReceipt =
+    type === 'MOVE_PAYMENT'
+      ? snapshot.ledger.receipts.find((row) => row.id === entryId)
+      : undefined;
   const selectedCredit = summary.credits.find((row) => row.id === entryId);
   const reversalEntry =
     type === 'REVERSE_CREDIT_APPLICATION'
@@ -144,6 +165,7 @@ export function ActivityDialog({
       'CANCEL_REMAINDER',
       'RECORD_RETURN',
       'CORRECT_DISPATCHED_ORDER',
+      'CORRECT_DELIVERY',
     ].includes(type);
     const payload: Record<string, unknown> = orderAction
       ? { orderId: detail!.order.id }
@@ -167,6 +189,28 @@ export function ActivityDialog({
     }
     if (type === 'DISPATCH_SHIPMENT' || type === 'CONFIRM_DELIVERY')
       payload.shipmentId = shipmentId;
+    if (type === 'CORRECT_DELIVERY') {
+      payload.shipmentId = shipmentId;
+      payload.items = correctionRows
+        .map((line) => ({
+          shipmentLineId: line.id,
+          deliveredQty: Number(form.get(`delivered-${line.id}`)),
+          current: line.delivered,
+        }))
+        .filter((line) => line.deliveredQty < line.current)
+        .map(({ shipmentLineId, deliveredQty }) => ({
+          shipmentLineId,
+          deliveredQty,
+        }));
+      if (!(payload.items as unknown[]).length) {
+        setError('Lower the delivered quantity of at least one item.');
+        return;
+      }
+    }
+    if (type === 'MOVE_PAYMENT') {
+      payload.receiptId = entryId;
+      payload.toCustomerId = form.get('target');
+    }
     try {
       if (type === 'RECORD_RETURN') payload.feePaise = paise(form.get('fee'));
       if (amountNeeded) payload.amountPaise = paise(form.get('amount'));
@@ -222,7 +266,9 @@ export function ActivityDialog({
     >
       <DialogContent
         className={
-          quantities || type === 'CORRECT_DISPATCHED_ORDER'
+          quantities ||
+          type === 'CORRECT_DISPATCHED_ORDER' ||
+          type === 'CORRECT_DELIVERY'
             ? 'max-w-3xl bg-white'
             : 'bg-white'
         }
@@ -273,6 +319,76 @@ export function ActivityDialog({
                 Allocate up to {money(summary.unappliedCashPaise)} of available
                 cash to this customer's oldest outstanding charges.
               </p>
+            )}
+            {type === 'CORRECT_DELIVERY' && (
+              <>
+                <p className="text-sm text-muted-foreground">
+                  Use this when more units were marked delivered than actually
+                  arrived. Enter the quantity that really reached the customer.
+                  The charge is reduced, any extra payment becomes free cash,
+                  and the missing units can be confirmed later.
+                </p>
+                <div className="overflow-hidden rounded-lg border">
+                  <Table
+                    columns={['Item', 'Marked delivered', 'Actually delivered']}
+                  >
+                    {correctionRows.map((line) => (
+                      <tr key={line.id}>
+                        <td className="min-w-40">{line.label}</td>
+                        <td className="text-muted-foreground">
+                          {line.delivered}
+                          {line.returned
+                            ? ` (${line.returned} already returned)`
+                            : ''}
+                        </td>
+                        <td>
+                          <Input
+                            className="w-24 bg-white"
+                            aria-label={`Actually delivered for ${line.label}`}
+                            name={`delivered-${line.id}`}
+                            type="number"
+                            min={line.returned}
+                            max={line.delivered}
+                            step={1}
+                            defaultValue={line.delivered}
+                          />
+                        </td>
+                      </tr>
+                    ))}
+                  </Table>
+                </div>
+              </>
+            )}
+            {type === 'MOVE_PAYMENT' && (
+              <>
+                <p className="rounded-md bg-muted p-3 text-sm">
+                  Payment{' '}
+                  <strong>{String(movedReceipt?.reference ?? '')}</strong> of{' '}
+                  <strong>
+                    {money(Number(movedReceipt?.amount_paise ?? 0))}
+                  </strong>{' '}
+                  will be taken off {summary.customer.name} and recorded for the
+                  customer you choose. Both accounts are recalculated and the
+                  original entry stays in the history.
+                </p>
+                <Field name="target" label="Correct customer">
+                  <NativeSelect
+                    id="target"
+                    name="target"
+                    required
+                    className="w-full"
+                  >
+                    <option value="">Select customer</option>
+                    {(data?.customers ?? [])
+                      .filter((row) => row.id !== summary.customer.id)
+                      .map((row) => (
+                        <option key={row.id} value={row.id}>
+                          {row.name}
+                        </option>
+                      ))}
+                  </NativeSelect>
+                </Field>
+              </>
             )}
             {quantities && (
               <div className="overflow-hidden rounded-lg border">
@@ -558,7 +674,9 @@ export function ActivityDialog({
               <Button
                 type="submit"
                 disabled={
-                  command.pending || (quantities && !quantityRows.length)
+                  command.pending ||
+                  (quantities && !quantityRows.length) ||
+                  (type === 'CORRECT_DELIVERY' && !correctionRows.length)
                 }
                 variant={
                   type === 'CANCEL_REMAINDER' || type === 'REJECT_ORDER'

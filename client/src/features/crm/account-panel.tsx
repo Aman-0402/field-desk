@@ -41,6 +41,7 @@ export function AccountPanel({
       CORRECTION: 'Shipment correction',
       RETURN: 'Returned goods',
       RETURN_FEE: 'Return deduction',
+      DELIVERY_REVERSAL: 'Delivery corrected',
     })[String(kind) as 'DELIVERY'] ?? String(kind);
   const reversed = (
     rows: Array<Record<string, unknown>>,
@@ -173,12 +174,41 @@ export function AccountPanel({
           />
           {tab === 'receipts' &&
             (ledger.receipts.length ? (
-              <Table columns={['Received', 'Payment reference', 'Amount']}>
+              <Table columns={['Received', 'Payment reference', 'Amount', '']}>
                 {[...ledger.receipts].reverse().map((row) => (
                   <tr key={String(row.id)}>
                     <td>{date(row.created_at)}</td>
-                    <td className="font-medium">{String(row.reference)}</td>
-                    <td>{money(Number(row.amount_paise))}</td>
+                    <td className="font-medium">
+                      {String(row.reference)}
+                      {row.reversed_at ? (
+                        <span className="ml-2 text-xs font-normal text-muted-foreground">
+                          Moved to another customer
+                        </span>
+                      ) : row.moved_from_receipt_id ? (
+                        <span className="ml-2 text-xs font-normal text-muted-foreground">
+                          Moved here from another customer
+                        </span>
+                      ) : null}
+                    </td>
+                    <td className={row.reversed_at ? 'line-through' : ''}>
+                      {money(Number(row.amount_paise))}
+                    </td>
+                    <td>
+                      {accounts && !row.reversed_at && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() =>
+                            setAction({
+                              type: 'MOVE_PAYMENT',
+                              entryId: String(row.id),
+                            })
+                          }
+                        >
+                          Move
+                        </Button>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </Table>
