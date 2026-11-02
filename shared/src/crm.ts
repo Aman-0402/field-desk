@@ -1,6 +1,9 @@
 import { z } from 'zod';
 import type { User } from './types.js';
 
+export { COMMAND_RULES } from './command-rules.js';
+export type { CommandRule } from './command-rules.js';
+
 const id = z.string().min(1).max(100);
 const quantity = z.number().int().min(1).max(10000);
 const amount = z.number().int().min(1).max(1000000000);

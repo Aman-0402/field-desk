@@ -16,7 +16,7 @@ import { ReturnsRepository } from '../returns/returns.repository.js';
 import { FulfillmentRepository } from '../fulfillment/fulfillment.repository.js';
 import { DatabaseService } from '../database/database.service.js';
 import type { ActionContext as Context, Payload } from '../common/domain.js';
-import { authorize, useCustomer, fail, safe } from '../common/domain.js';
+import { useCustomer, fail, safe } from '../common/domain.js';
 
 @Injectable()
 export class AccountsService {
@@ -31,7 +31,6 @@ export class AccountsService {
     private readonly database: DatabaseService,
   ) {}
   receive(c: Context, p: Payload<'RECEIVE_CUSTOMER_PAYMENT'>) {
-    authorize(c, 'ACCOUNTS', 'ADMIN');
     useCustomer(c, this.customersRepository.findById(p.customerId));
     const receiptId = randomUUID();
     c.references.receiptId = receiptId;
@@ -43,18 +42,9 @@ export class AccountsService {
       action_id: c.id,
       created_at: c.now,
     });
-
-    this.allocateCash(c);
-
-    this.rewardsService.refresh(c);
   }
   allocate(c: Context, p: Payload<'ALLOCATE_PAYMENT'>) {
-    authorize(c, 'ACCOUNTS', 'ADMIN');
     useCustomer(c, this.customersRepository.findById(p.customerId));
-
-    this.allocateCash(c);
-
-    this.rewardsService.refresh(c);
   }
   allocateCash(c: Context) {
     for (const receipt of this.accountsRepository.receiptsForCustomer(

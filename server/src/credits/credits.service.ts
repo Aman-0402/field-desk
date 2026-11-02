@@ -6,7 +6,7 @@ import { AccountsRepository } from '../accounts/accounts.repository.js';
 import { CreditsRepository } from '../credits/credits.repository.js';
 import { RewardsRepository } from '../rewards/rewards.repository.js';
 import type { ActionContext as Context, Payload } from '../common/domain.js';
-import { authorize, useCustomer, fail, safe } from '../common/domain.js';
+import { useCustomer, fail, safe } from '../common/domain.js';
 
 @Injectable()
 export class CreditsService {
@@ -17,7 +17,6 @@ export class CreditsService {
     private readonly rewardsRepository: RewardsRepository,
   ) {}
   issueCredit(c: Context, p: Payload<'ISSUE_CREDIT_NOTE'>) {
-    authorize(c, 'ACCOUNTS', 'ADMIN');
     useCustomer(c, this.customersRepository.findById(p.customerId));
     let available = 0;
     const funds = this.accountsRepository
@@ -60,7 +59,6 @@ export class CreditsService {
     }
   }
   applyCredit(c: Context, p: Payload<'APPLY_CREDIT_NOTE'>) {
-    authorize(c, 'ACCOUNTS', 'ADMIN');
     useCustomer(c, this.customersRepository.findById(p.customerId));
     const note = this.creditsRepository.findCustomerCredit(
       p.creditNoteId,
@@ -98,7 +96,6 @@ export class CreditsService {
     });
   }
   refundCredit(c: Context, p: Payload<'REFUND_CREDIT_NOTE'>) {
-    authorize(c, 'ACCOUNTS', 'ADMIN');
     useCustomer(c, this.customersRepository.findById(p.customerId));
     const note = this.creditsRepository.findCustomerCredit(
       p.creditNoteId,
@@ -137,7 +134,6 @@ export class CreditsService {
     c: Context,
     p: Payload<'REVERSE_CREDIT_APPLICATION'>,
   ) {
-    authorize(c, 'ACCOUNTS', 'ADMIN');
     useCustomer(c, this.customersRepository.findById(p.customerId));
     const original = this.creditsRepository.findCustomerApplication(
       p.applicationId,
@@ -177,7 +173,6 @@ export class CreditsService {
     c.references.creditNoteId = original.credit_note_id;
   }
   reverseCreditRefund(c: Context, p: Payload<'REVERSE_CREDIT_REFUND'>) {
-    authorize(c, 'ACCOUNTS', 'ADMIN');
     useCustomer(c, this.customersRepository.findById(p.customerId));
     const original = this.creditsRepository.findCustomerRefund(
       p.refundId,

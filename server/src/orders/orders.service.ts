@@ -11,7 +11,6 @@ import { ReturnsRepository } from '../returns/returns.repository.js';
 import { AuditRepository } from '../audit/audit.repository.js';
 import type { ActionContext as Context, Payload } from '../common/domain.js';
 import {
-  authorize,
   useOrder,
   useCustomer,
   fail,
@@ -33,7 +32,6 @@ export class OrdersService {
     private readonly auditRepository: AuditRepository,
   ) {}
   punch(c: Context, p: Payload<'PUNCH_ORDER'>) {
-    authorize(c, 'SALES', 'ADMIN');
     useCustomer(c, this.customersRepository.findById(p.customerId));
     const orderId = randomUUID();
     c.orderId = orderId;
@@ -73,7 +71,6 @@ export class OrdersService {
     }
   }
   edit(c: Context, p: Payload<'EDIT_ORDER'>) {
-    authorize(c, 'SALES', 'ADMIN');
     const order = useOrder(c, this.ordersRepository.findById(p.orderId));
     new OrderModel(order).assertEditable(
       Boolean(this.fulfillmentRepository.dispatchedCount(order.id)),
@@ -135,7 +132,6 @@ export class OrdersService {
     }
   }
   submit(c: Context, p: Payload<'SUBMIT_ORDER'>) {
-    authorize(c, 'SALES', 'ADMIN');
     const order = useOrder(c, this.ordersRepository.findById(p.orderId));
     new OrderModel(order).assertSubmittable();
     this.ordersRepository.updateOrder(c, order.id, {
@@ -146,7 +142,6 @@ export class OrdersService {
     });
   }
   approve(c: Context, p: Payload<'APPROVE_ORDER'>) {
-    authorize(c, 'KAM', 'ADMIN');
     const order = useOrder(c, this.ordersRepository.findById(p.orderId));
     new OrderModel(order).assertReviewable(p.revision, 'APPROVED');
     this.ordersRepository.insertApproval(c, {
@@ -180,7 +175,6 @@ export class OrdersService {
     }
   }
   reject(c: Context, p: Payload<'REJECT_ORDER'>) {
-    authorize(c, 'KAM', 'ADMIN');
     const order = useOrder(c, this.ordersRepository.findById(p.orderId));
     new OrderModel(order).assertReviewable(p.revision, 'REJECTED');
     this.ordersRepository.insertApproval(c, {
@@ -195,7 +189,6 @@ export class OrdersService {
     this.ordersRepository.updateOrder(c, order.id, { status: 'REJECTED' });
   }
   cancel(c: Context, p: Payload<'CANCEL_REMAINDER'>) {
-    authorize(c, 'SALES', 'ADMIN');
     const order = useOrder(c, this.ordersRepository.findById(p.orderId));
     const lines = this.ordersRepository.currentLines(
       order.id,
