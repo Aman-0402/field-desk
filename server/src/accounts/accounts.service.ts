@@ -85,6 +85,70 @@ export class AccountsService {
     }
   }
   /**
+   * ACC-004 (FDSK-169). Move a receipt recorded against the wrong customer.
+   * The original receipt and the cash it settled are never edited: its
+   * allocations are released with negative rows, a reversal row retires the
+   * receipt, and an identical receipt (same amount, reference and time
+   * received) is recorded on the right customer. The shell then reconciles
+   * both customers, so the old customer's charges reopen and the new
+   * customer's cash is allocated under ACC-003.
+   */
+  movePayment(c: Context, p: Payload<'MOVE_PAYMENT'>) {
+    useCustomer(c, this.customersRepository.findById(p.customerId));
+    const receipt = this.accountsRepository.findLiveReceipt(
+      p.receiptId,
+      c.customerId,
+    );
+    if (!receipt)
+      fail(
+        'RECEIPT_NOT_FOUND',
+        'Select a receipt recorded against this customer',
+      );
+    if (p.toCustomerId === c.customerId)
+      fail(
+        'SAME_CUSTOMER',
+        'Choose a different customer to move the payment to',
+      );
+    const target = this.customersRepository.findById(p.toCustomerId);
+    if (!target) fail('NOT_FOUND', 'Customer not found');
+    c.touched.add(target.id);
+    if (this.creditsRepository.reservedFromReceipt(receipt.id))
+      fail(
+        'RECEIPT_FUNDS_CREDIT',
+        'This payment funds a credit note, so it cannot be moved',
+      );
+    for (const settled of this.accountsRepository.allocatedByCharge(receipt.id))
+      this.accountsRepository.insertAllocation(c, {
+        id: randomUUID(),
+        customer_id: c.customerId,
+        receipt_id: receipt.id,
+        charge_id: settled.charge_id,
+        amount_paise: -settled.n,
+        action_id: c.id,
+        created_at: c.now,
+      });
+    const replacementId = randomUUID();
+    c.references.receiptId = replacementId;
+    c.references.reversedReceiptId = receipt.id;
+    this.accountsRepository.insertReceipt(c, {
+      id: replacementId,
+      customer_id: target.id,
+      amount_paise: receipt.amount_paise,
+      reference: receipt.reference,
+      moved_from_receipt_id: receipt.id,
+      action_id: c.id,
+      created_at: receipt.created_at,
+    });
+    this.accountsRepository.insertReceiptReversal(c, {
+      id: randomUUID(),
+      receipt_id: receipt.id,
+      replacement_receipt_id: replacementId,
+      reason: p.reason,
+      action_id: c.id,
+      created_at: c.now,
+    });
+  }
+  /**
    * WF-003. A charge's retained value has fallen to `newFace`. Release any
    * settlement above it: cash first, then credit, then points. Cash and credit
    * are taken from the most recently settled source first, and every released
@@ -216,7 +280,8 @@ export class AccountsService {
           ).availablePaise,
         };
       });
-    const receipts = this.accountsRepository.receiptsByInsertion(customerId);
+    const receipts =
+      this.accountsRepository.liveReceiptsByInsertion(customerId);
     const unappliedCashPaise = safe(
       receipts.reduce(
         (sum, receipt) =>

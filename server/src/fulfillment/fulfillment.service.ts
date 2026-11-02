@@ -1,4 +1,4 @@
-import { ShipmentQuantity } from './fulfillment.model.js';
+import { ShipmentQuantity, shipmentStatusFor } from './fulfillment.model.js';
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { OrdersRepository } from '../orders/orders.repository.js';
@@ -148,13 +148,117 @@ export class FulfillmentService {
         created_at: c.now,
       });
     }
-    const remaining = this.fulfillmentRepository.undeliveredForShipment(
-      shipment.id,
+    this.syncShipmentStatus(c, shipment);
+  }
+  /**
+   * FUL-007 (FDSK-170). Lower an overstated delivery. Delivery rows are never
+   * edited: each reduction appends a negative delivery row that reverses the
+   * most recent confirmations first, plus one negative charge at the
+   * shipment-line price (WF-005). Settlement above the reduced charge is
+   * released in WF-003 order. Released cash stays free, so the shell's
+   * reconcile can allocate it again, and it will pay for the missing units
+   * when Warehouse confirms them later.
+   */
+  correctDelivery(c: Context, p: Payload<'CORRECT_DELIVERY'>) {
+    const order = useOrder(c, this.ordersRepository.findById(p.orderId));
+    const shipment = this.fulfillmentRepository.findForOrder(
+      p.shipmentId,
+      order.id,
     );
-    if (!remaining)
-      this.fulfillmentRepository.updateShipment(c, shipment.id, {
-        status: 'DELIVERED',
-      });
+    if (!shipment || !['DISPATCHED', 'DELIVERED'].includes(shipment.status))
+      fail('SHIPMENT_STATE', 'Select a dispatched shipment with deliveries');
+    distinct(p.items.map((item) => item.shipmentLineId));
+    const released = new Map<string, number>();
+    for (const item of p.items) {
+      const line = this.fulfillmentRepository.findInShipment(
+        item.shipmentLineId,
+        shipment.id,
+      );
+      if (!line)
+        fail(
+          'LINE_NOT_FOUND',
+          'The shipment line does not belong to this shipment',
+        );
+      const delivered = this.fulfillmentRepository.deliveredForShipmentLine(
+        line.id,
+      );
+      new ShipmentQuantity(line.dispatched_qty, delivered).assertCorrectable(
+        item.deliveredQty,
+        this.returnsRepository.returnedForShipmentLine(line.id),
+      );
+      let excess = delivered - item.deliveredQty;
+      const deliveries = this.fulfillmentRepository
+        .deliveriesForShipmentLine(line.id)
+        .filter((row) => row.qty > 0)
+        .reverse();
+      for (const delivery of deliveries) {
+        if (!excess) break;
+        const charge = this.accountsRepository.chargesForDelivery(
+          delivery.id,
+        )[0];
+        if (!charge)
+          fail('CHARGE_MISMATCH', 'A delivery is missing its goods charge');
+        const face =
+          charge.amount_paise +
+          this.accountsRepository.adjustmentsForCharge(charge.id);
+        const take = Math.min(
+          excess,
+          delivery.qty -
+            this.fulfillmentRepository.reversedForDelivery(delivery.id),
+          Math.floor(face / line.unit_price_paise),
+        );
+        if (!take) continue;
+        const reversalId = randomUUID();
+        this.fulfillmentRepository.insertDelivery(c, {
+          id: reversalId,
+          shipment_line_id: line.id,
+          order_id: order.id,
+          qty: -take,
+          reverses_id: delivery.id,
+          action_id: c.id,
+          created_at: c.now,
+        });
+        const reduction = safe(take * line.unit_price_paise);
+        this.accountsRepository.insertCharge(c, {
+          id: randomUUID(),
+          customer_id: c.customerId,
+          order_id: order.id,
+          line_key: line.line_key,
+          shipment_line_id: line.id,
+          kind: 'DELIVERY_REVERSAL',
+          amount_paise: -reduction,
+          adjusts_id: charge.id,
+          source_id: reversalId,
+          action_id: c.id,
+          created_at: c.now,
+        });
+        this.accountsService.releaseSettlement(
+          c,
+          charge,
+          face - reduction,
+          reversalId,
+          released,
+        );
+        excess -= take;
+      }
+      if (excess)
+        fail(
+          'CHARGE_MISMATCH',
+          'Delivered charges do not cover this correction',
+        );
+    }
+    this.syncShipmentStatus(c, shipment);
+  }
+  /** FUL-006: derive the shipment status from what still awaits confirmation. */
+  private syncShipmentStatus(
+    c: Context,
+    shipment: { id: string; status: string },
+  ) {
+    const status = shipmentStatusFor(
+      this.fulfillmentRepository.undeliveredForShipment(shipment.id),
+    );
+    if (status !== shipment.status)
+      this.fulfillmentRepository.updateShipment(c, shipment.id, { status });
   }
   correct(c: Context, p: Payload<'CORRECT_DISPATCHED_ORDER'>) {
     const order = useOrder(c, this.ordersRepository.findById(p.orderId));

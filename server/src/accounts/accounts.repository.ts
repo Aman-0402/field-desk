@@ -1,5 +1,18 @@
 import { Injectable, Module } from '@nestjs/common';
-import { and, asc, desc, eq, gt, inArray, lt, min, sum } from 'drizzle-orm';
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  getTableColumns,
+  gt,
+  inArray,
+  lt,
+  min,
+  notExists,
+  sum,
+} from 'drizzle-orm';
+import { sql } from 'drizzle-orm';
 import { DatabaseService } from '../database/database.service.js';
 import { DatabaseModule } from '../database/database.module.js';
 import { insertionOrder } from '../database/query-order.js';
@@ -9,6 +22,7 @@ import {
   crmReceivableEntries,
   crmPaymentReceipts,
   crmPaymentAllocations,
+  crmReceiptReversals,
 } from '../accounts/accounts.model.js';
 
 @Injectable()
@@ -39,16 +53,92 @@ export class AccountsRepository {
         .get()?.value ?? 0,
     );
   }
+  /** A receipt is live until a move reverses it (ACC-004). */
+  private notReversed() {
+    return notExists(
+      this.db
+        .select({ id: crmReceiptReversals.id })
+        .from(crmReceiptReversals)
+        .where(eq(crmReceiptReversals.receipt_id, crmPaymentReceipts.id)),
+    );
+  }
+  /** Live receipts in cash-priority order (ACC-003). */
   receiptsForCustomer(customerId: string) {
     return this.db
       .select()
       .from(crmPaymentReceipts)
-      .where(eq(crmPaymentReceipts.customer_id, customerId))
+      .where(
+        and(eq(crmPaymentReceipts.customer_id, customerId), this.notReversed()),
+      )
       .orderBy(
         asc(crmPaymentReceipts.created_at),
         insertionOrder(crmPaymentReceipts),
       )
       .all();
+  }
+  findLiveReceipt(id: string, customerId: string) {
+    return this.db
+      .select()
+      .from(crmPaymentReceipts)
+      .where(
+        and(
+          eq(crmPaymentReceipts.id, id),
+          eq(crmPaymentReceipts.customer_id, customerId),
+          this.notReversed(),
+        ),
+      )
+      .get();
+  }
+  /** Net cash a receipt currently holds against each charge. */
+  allocatedByCharge(receiptId: string) {
+    return this.db
+      .select({
+        charge_id: crmPaymentAllocations.charge_id,
+        n: sum(crmPaymentAllocations.amount_paise).mapWith(Number),
+      })
+      .from(crmPaymentAllocations)
+      .where(eq(crmPaymentAllocations.receipt_id, receiptId))
+      .groupBy(crmPaymentAllocations.charge_id)
+      .having(gt(sum(crmPaymentAllocations.amount_paise), 0))
+      .orderBy(asc(min(insertionOrder(crmPaymentAllocations))))
+      .all()
+      .map((row) => ({ ...row, n: safe(row.n ?? 0) }));
+  }
+  reversalForReceipt(receiptId: string) {
+    return this.db
+      .select({
+        replacement_id: crmReceiptReversals.replacement_receipt_id,
+        customer_id: crmPaymentReceipts.customer_id,
+        amount_paise: crmPaymentReceipts.amount_paise,
+      })
+      .from(crmReceiptReversals)
+      .innerJoin(
+        crmPaymentReceipts,
+        eq(crmPaymentReceipts.id, crmReceiptReversals.replacement_receipt_id),
+      )
+      .where(eq(crmReceiptReversals.receipt_id, receiptId))
+      .get();
+  }
+  /** CUS-001: allocations whose receipt or charge belongs to another customer. */
+  crossAccountAllocations(customerId: string) {
+    return this.db
+      .select({ id: crmPaymentAllocations.id })
+      .from(crmPaymentAllocations)
+      .innerJoin(
+        crmPaymentReceipts,
+        eq(crmPaymentReceipts.id, crmPaymentAllocations.receipt_id),
+      )
+      .innerJoin(
+        crmReceivableEntries,
+        eq(crmReceivableEntries.id, crmPaymentAllocations.charge_id),
+      )
+      .where(
+        and(
+          eq(crmPaymentAllocations.customer_id, customerId),
+          sql`(${crmPaymentReceipts.customer_id} <> ${crmPaymentAllocations.customer_id} or ${crmReceivableEntries.customer_id} <> ${crmPaymentAllocations.customer_id})`,
+        ),
+      )
+      .all().length;
   }
   allocatedFromReceipt(receiptId: string) {
     return safe(
@@ -152,11 +242,29 @@ export class AccountsRepository {
       )
       .get();
   }
+  /** Every receipt, reversed ones included and marked, for the ledger and audit. */
   receiptsByInsertion(customerId: string) {
+    return this.db
+      .select({
+        ...getTableColumns(crmPaymentReceipts),
+        reversed_at: crmReceiptReversals.created_at,
+      })
+      .from(crmPaymentReceipts)
+      .leftJoin(
+        crmReceiptReversals,
+        eq(crmReceiptReversals.receipt_id, crmPaymentReceipts.id),
+      )
+      .where(eq(crmPaymentReceipts.customer_id, customerId))
+      .orderBy(insertionOrder(crmPaymentReceipts))
+      .all();
+  }
+  liveReceiptsByInsertion(customerId: string) {
     return this.db
       .select()
       .from(crmPaymentReceipts)
-      .where(eq(crmPaymentReceipts.customer_id, customerId))
+      .where(
+        and(eq(crmPaymentReceipts.customer_id, customerId), this.notReversed()),
+      )
       .orderBy(insertionOrder(crmPaymentReceipts))
       .all();
   }
@@ -178,7 +286,12 @@ export class AccountsRepository {
       this.db
         .select({ value: sum(crmPaymentReceipts.amount_paise).mapWith(Number) })
         .from(crmPaymentReceipts)
-        .where(eq(crmPaymentReceipts.customer_id, customerId))
+        .where(
+          and(
+            eq(crmPaymentReceipts.customer_id, customerId),
+            this.notReversed(),
+          ),
+        )
         .get()?.value ?? 0,
     );
   }
@@ -200,7 +313,11 @@ export class AccountsRepository {
       .where(
         and(
           eq(crmReceivableEntries.source_id, deliveryId),
-          inArray(crmReceivableEntries.kind, ['DELIVERY', 'CORRECTION']),
+          inArray(crmReceivableEntries.kind, [
+            'DELIVERY',
+            'CORRECTION',
+            'DELIVERY_REVERSAL',
+          ]),
         ),
       )
       .orderBy(insertionOrder(crmReceivableEntries))
@@ -241,6 +358,13 @@ export class AccountsRepository {
   insertReceipt(c: ActionContext, row: typeof crmPaymentReceipts.$inferInsert) {
     this.db.insert(crmPaymentReceipts).values(row).run();
     recordInsert(c, 'payment_receipts', row, false);
+  }
+  insertReceiptReversal(
+    c: ActionContext,
+    row: typeof crmReceiptReversals.$inferInsert,
+  ) {
+    this.db.insert(crmReceiptReversals).values(row).run();
+    recordInsert(c, 'receipt_reversals', row, false);
   }
   insertAllocation(
     c: ActionContext,

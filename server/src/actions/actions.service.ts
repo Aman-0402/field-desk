@@ -225,6 +225,15 @@ export class ActionsService {
               case 'CORRECT_DISPATCHED_ORDER':
                 this.fulfillmentService.correct(c, envelope.command.payload);
                 break;
+              case 'CORRECT_DELIVERY':
+                this.fulfillmentService.correctDelivery(
+                  c,
+                  envelope.command.payload,
+                );
+                break;
+              case 'MOVE_PAYMENT':
+                this.accountsService.movePayment(c, envelope.command.payload);
+                break;
             }
             // WF-002: commands that move cash or goods value recompute cash
             // allocation and reward points for every customer they touched.

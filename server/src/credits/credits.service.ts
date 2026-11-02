@@ -20,7 +20,7 @@ export class CreditsService {
     useCustomer(c, this.customersRepository.findById(p.customerId));
     let available = 0;
     const funds = this.accountsRepository
-      .receiptsByInsertion(c.customerId)
+      .liveReceiptsByInsertion(c.customerId)
       .map((receipt) => {
         const free =
           receipt.amount_paise -

@@ -70,9 +70,11 @@ export class AuditService {
       reason =
         row.kind === 'RETURN'
           ? `Returned goods reduce charge ${row.adjusts_id} by ${-Number(row.amount_paise)} paise; the original charge remains recorded.`
-          : row.kind === 'RETURN_FEE'
-            ? `Return ${row.source_id} incurs the recorded deduction of ${row.amount_paise} paise.`
-            : `Confirmed delivery ${row.source_id} recognizes ${row.amount_paise} paise for shipment line ${row.shipment_line_id}; unconfirmed units create no charge.`;
+          : row.kind === 'DELIVERY_REVERSAL'
+            ? `Corrected delivery ${row.source_id} reduces charge ${row.adjusts_id} by ${-Number(row.amount_paise)} paise; the original charge remains recorded.`
+            : row.kind === 'RETURN_FEE'
+              ? `Return ${row.source_id} incurs the recorded deduction of ${row.amount_paise} paise.`
+              : `Confirmed delivery ${row.source_id} recognizes ${row.amount_paise} paise for shipment line ${row.shipment_line_id}; unconfirmed units create no charge.`;
     } else if (table === 'payment_allocations') {
       reason =
         Number(row.amount_paise) > 0
@@ -95,11 +97,18 @@ export class AuditService {
     } else if (table === 'credit_funds') {
       reason = `Reserve ${row.amount_paise} paise of receipt ${row.receipt_id} for credit ${row.credit_note_id}, preventing reuse as unapplied cash.`;
     } else if (table === 'payment_receipts') {
-      reason = `Receive ${row.amount_paise} paise against customer ${row.customer_id}, reference ${row.reference}. No order is selected at capture.`;
+      reason = row.moved_from_receipt_id
+        ? `Record ${row.amount_paise} paise, reference ${row.reference}, against customer ${row.customer_id} as the correct owner of receipt ${row.moved_from_receipt_id}; the original keeps its recorded time and is reversed.`
+        : `Receive ${row.amount_paise} paise against customer ${row.customer_id}, reference ${row.reference}. No order is selected at capture.`;
+    } else if (table === 'receipt_reversals') {
+      reason = `Reverse receipt ${row.receipt_id} after it was recorded against the wrong customer; the replacement is receipt ${row.replacement_receipt_id}. The original row stays in the ledger.`;
     } else if (table === 'cancellations') {
       reason = `Cancel ${row.qty} unshipped units of line ${row.line_key}; dispatched and delivered quantities remain historical facts.`;
     } else if (table === 'deliveries') {
-      reason = `Confirm ${row.qty} delivered units on shipment line ${row.shipment_line_id}; each confirmation creates one incremental goods charge.`;
+      reason =
+        Number(row.qty) < 0
+          ? `Take back ${-Number(row.qty)} units that delivery ${row.reverses_id} overstated on shipment line ${row.shipment_line_id}; the original confirmation stays recorded.`
+          : `Confirm ${row.qty} delivered units on shipment line ${row.shipment_line_id}; each confirmation creates one incremental goods charge.`;
     } else if (table === 'approvals') {
       reason = `${row.decision} applies specifically to commercial revision ${row.revision}.`;
     } else if (table === 'shipments') {
@@ -316,6 +325,12 @@ export class AuditService {
         [charge.id],
       );
     }
+    check(
+      'account-boundary',
+      'Cash settles only charges of the customer who paid it',
+      this.accountsRepository.crossAccountAllocations(customerId) === 0,
+      'Every allocation joins a receipt and a charge of the same customer.',
+    );
     for (const receipt of this.accountsRepository.receiptsByInsertion(
       customerId,
     )) {
@@ -326,6 +341,20 @@ export class AuditService {
       const invalidPairs = this.accountsRepository.invalidReceiptAllocations(
         receipt.id,
       );
+      const moved = receipt.reversed_at
+        ? this.accountsRepository.reversalForReceipt(receipt.id)
+        : undefined;
+      if (receipt.reversed_at)
+        check(
+          `receipt-reversal:${receipt.id}`,
+          'A moved receipt holds no cash and is replaced in full elsewhere',
+          allocated === 0 &&
+            reserved === 0 &&
+            moved?.amount_paise === receipt.amount_paise &&
+            moved.customer_id !== customerId,
+          `Received ${receipt.amount_paise}; still allocated ${allocated}; reserved ${reserved}; replacement ${moved?.amount_paise ?? 0} paise on another customer.`,
+          [receipt.id],
+        );
       check(
         `cash:${receipt.id}`,
         'Receipt cash is allocated or reserved at most once',

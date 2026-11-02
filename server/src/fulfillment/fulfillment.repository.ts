@@ -116,6 +116,27 @@ export class FulfillmentRepository {
         .get()?.value ?? 0,
     );
   }
+  /** Delivery rows of a line in recording order, reversals included. */
+  deliveriesForShipmentLine(lineId: string) {
+    return this.db
+      .select()
+      .from(crmDeliveries)
+      .where(eq(crmDeliveries.shipment_line_id, lineId))
+      .orderBy(insertionOrder(crmDeliveries))
+      .all();
+  }
+  /** Units of one delivery already taken back by reversal rows. */
+  reversedForDelivery(deliveryId: string) {
+    return safe(
+      -(
+        this.db
+          .select({ value: sum(crmDeliveries.qty).mapWith(Number) })
+          .from(crmDeliveries)
+          .where(eq(crmDeliveries.reverses_id, deliveryId))
+          .get()?.value ?? 0
+      ),
+    );
+  }
   undeliveredForShipment(shipmentId: string) {
     return safe(
       this.linesForShipment(shipmentId).reduce(
