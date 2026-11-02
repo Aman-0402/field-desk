@@ -9,8 +9,8 @@ Started: 2026-11-02. Original deadline: 2026-10-31 (late-submission status to be
 - [x] Upstream `AviKKi/field-desk` imported with original history (47 commits preserved, merged via unrelated-histories)
 - [x] Read candidate walkthrough, canonical business rules, business terms, architecture doc
 - [x] Install deps and run baseline tests (251 pass, 0 fail)
-- [ ] Map current code against canonical rules (where rules live today)
-- [ ] Architecture draft 1
+- [x] Map current code against canonical rules (`docs/architecture/00-current-state-rule-map.md`)
+- [x] Architecture draft 1 (`docs/architecture/01-draft-1-first-pass.md`)
 - [ ] Architecture draft 2 (refined)
 - [ ] Architecture draft 3 (post-research / LLM discussion)
 - [ ] Architecture final
