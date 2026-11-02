@@ -73,6 +73,8 @@ $$
 
 **FUL-006. Delivery.** Confirm quantities only on a `DISPATCHED` batch; set it to `DELIVERED` when all dispatched units are confirmed.
 
+**FUL-007. Delivery correction.** *(Added for FDSK-170.)* A KAM may lower the delivered quantity of a line on a `DISPATCHED` or `DELIVERED` batch to a value below the current delivered quantity and not below the returned quantity (**FUL-001**). The correction appends negative delivery rows that reverse the most recent confirmations first (**WF-001**) and a negative goods charge adjusting the original charge (**WF-005**). Any cash, credit or points above the reduced charge are released in the order of **WF-003**; released cash becomes free cash. The batch returns to `DISPATCHED` while dispatched units await confirmation.
+
 ![Shipment lifecycle diagram](diagrams/shipment-lifecycle.svg)
 
 ### Returns
@@ -104,6 +106,8 @@ a_i,f_i\geq0,\qquad u_i=m_i-a_i-f_i\geq0.
 $$
 
 #### Domain policies
+
+**ACC-004. Payment move.** *(Added for FDSK-169.)* Accounts may move a live receipt to a different customer. The receipt is marked reversed, its allocations are reversed by negative rows, and an identical replacement receipt (same amount, reference and original time, so **ACC-003** priority is unchanged) is recorded on the target customer (**WF-001**). Both customers then follow **WF-002**. A receipt that funds a credit note cannot be moved; reverse the credit first.
 
 **ACC-003. Cash priority.** Allocate free cash across the customer's outstanding charges in creation-time order, breaking ties by recording order. Visit receipts in that same ordering. Each allocation takes:
 
