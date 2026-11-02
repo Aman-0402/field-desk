@@ -8,7 +8,7 @@ Started: 2026-11-02. Original deadline: 2026-10-31 (late-submission status to be
 - [x] Private repo created (`Aman-0402/field-desk`)
 - [x] Upstream `AviKKi/field-desk` imported with original history (47 commits preserved, merged via unrelated-histories)
 - [x] Read candidate walkthrough, canonical business rules, business terms, architecture doc
-- [ ] Run app locally (install, migrate, seed, tests)
+- [x] Install deps and run baseline tests (251 pass, 0 fail)
 - [ ] Map current code against canonical rules (where rules live today)
 - [ ] Architecture draft 1
 - [ ] Architecture draft 2 (refined)
