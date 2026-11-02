@@ -113,6 +113,28 @@ export const crmActionSchema = z.discriminatedUnion('type', [
     reason,
     reference: reason,
   }),
+  action('MOVE_PAYMENT', {
+    customerId: id,
+    receiptId: id,
+    toCustomerId: id,
+    reason,
+  }),
+  action('CORRECT_DELIVERY', {
+    orderId: id,
+    shipmentId: id,
+    items: z
+      .array(
+        z
+          .object({
+            shipmentLineId: id,
+            deliveredQty: z.number().int().min(0).max(10000),
+          })
+          .strict(),
+      )
+      .min(1)
+      .max(100),
+    reason,
+  }),
   action('CORRECT_DISPATCHED_ORDER', {
     orderId: id,
     items: z

@@ -94,6 +94,18 @@ export const COMMAND_RULES = {
     reconciles: true,
     rules: ['WF-001', 'WF-002', 'WF-004'],
   },
+  CORRECT_DELIVERY: {
+    summary: 'Lower an overstated delivery quantity',
+    roles: ['KAM'],
+    reconciles: true,
+    rules: ['FUL-001', 'FUL-007', 'WF-001', 'WF-002', 'WF-003', 'WF-005'],
+  },
+  MOVE_PAYMENT: {
+    summary: 'Move a payment recorded against the wrong customer',
+    roles: ['ACCOUNTS'],
+    reconciles: true,
+    rules: ['CUS-001', 'ACC-003', 'ACC-004', 'WF-001', 'WF-002'],
+  },
   RECEIVE_CUSTOMER_PAYMENT: {
     summary: 'Capture customer cash and allocate it',
     roles: ['ACCOUNTS'],

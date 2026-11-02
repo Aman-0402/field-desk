@@ -85,7 +85,10 @@ export const crmDeliveries = sqliteTable(
     order_id: text('order_id')
       .notNull()
       .references(() => crmOrders.id, { onDelete: 'cascade' }),
+    /** Units confirmed. Negative only on a reversal row (FUL-007). */
     qty: integer('qty').notNull(),
+    /** The delivery this row reverses; set exactly when `qty` is negative. */
+    reverses_id: text('reverses_id'),
     action_id: text('action_id').notNull(),
     created_at: text('created_at').notNull(),
   },
@@ -94,7 +97,7 @@ export const crmDeliveries = sqliteTable(
     index('deliveries_order_id_idx').on(t.order_id),
     check(
       'deliveries_qty_check',
-      sql`typeof(${t.qty}) = 'integer' and ${t.qty} > 0`,
+      sql`typeof(${t.qty}) = 'integer' and ${t.qty} <> 0 and (${t.qty} < 0) = (${t.reverses_id} is not null)`,
     ),
   ],
 );
@@ -144,4 +147,21 @@ export class ShipmentQuantity {
     if (qty > this.awaitingDelivery)
       fail('QUANTITY_EXCEEDED', 'Delivery exceeds the dispatched quantity');
   }
+  /** FUL-007: a correction only lowers delivery, and never below returned units (FUL-001). */
+  assertCorrectable(correctedQty: number, returned: number) {
+    if (correctedQty >= this.delivered)
+      fail(
+        'NOT_AN_OVERSTATEMENT',
+        'The corrected quantity must be lower than the delivered quantity',
+      );
+    if (correctedQty < returned)
+      fail(
+        'BELOW_RETURNED',
+        'Delivered units cannot fall below the units already returned',
+      );
+  }
+}
+/** FUL-006/007: a shipment is delivered exactly when no dispatched unit awaits confirmation. */
+export function shipmentStatusFor(awaitingDelivery: number) {
+  return awaitingDelivery > 0 ? 'DISPATCHED' : 'DELIVERED';
 }

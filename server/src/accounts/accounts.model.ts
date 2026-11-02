@@ -48,6 +48,8 @@ export const crmPaymentReceipts = sqliteTable(
       .references(() => crmCustomers.id, { onDelete: 'cascade' }),
     amount_paise: integer('amount_paise').notNull(),
     reference: text('reference').notNull(),
+    /** The reversed receipt this one replaces after a move (ACC-004). */
+    moved_from_receipt_id: text('moved_from_receipt_id'),
     action_id: text('action_id').notNull(),
     created_at: text('created_at').notNull(),
   },
@@ -57,6 +59,27 @@ export const crmPaymentReceipts = sqliteTable(
       'payment_receipts_amount_paise_check',
       sql`typeof(${t.amount_paise}) = 'integer' and ${t.amount_paise} > 0`,
     ),
+  ],
+);
+
+/** A receipt recorded against the wrong customer, reversed by a move (ACC-004). */
+export const crmReceiptReversals = sqliteTable(
+  'receipt_reversals',
+  {
+    id: text('id').primaryKey(),
+    receipt_id: text('receipt_id')
+      .notNull()
+      .unique()
+      .references(() => crmPaymentReceipts.id, { onDelete: 'cascade' }),
+    replacement_receipt_id: text('replacement_receipt_id')
+      .notNull()
+      .references(() => crmPaymentReceipts.id, { onDelete: 'cascade' }),
+    reason: text('reason').notNull(),
+    action_id: text('action_id').notNull(),
+    created_at: text('created_at').notNull(),
+  },
+  (t) => [
+    index('receipt_reversals_replacement_idx').on(t.replacement_receipt_id),
   ],
 );
 
