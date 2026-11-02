@@ -5,7 +5,6 @@ import { OrdersRepository } from '../orders/orders.repository.js';
 import { FulfillmentRepository } from '../fulfillment/fulfillment.repository.js';
 import { AccountsRepository } from '../accounts/accounts.repository.js';
 import { AccountsService } from '../accounts/accounts.service.js';
-import { RewardsService } from '../rewards/rewards.service.js';
 import { CatalogRepository } from '../catalog/catalog.repository.js';
 import { ReturnsRepository } from '../returns/returns.repository.js';
 import type { ActionContext as Context, Payload } from '../common/domain.js';
@@ -24,7 +23,6 @@ export class FulfillmentService {
     private readonly fulfillmentRepository: FulfillmentRepository,
     private readonly accountsRepository: AccountsRepository,
     private readonly accountsService: AccountsService,
-    private readonly rewardsService: RewardsService,
     private readonly catalogRepository: CatalogRepository,
     private readonly returnsRepository: ReturnsRepository,
   ) {}

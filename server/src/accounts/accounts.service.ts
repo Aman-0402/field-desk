@@ -84,6 +84,96 @@ export class AccountsService {
       }
     }
   }
+  /**
+   * WF-003. A charge's retained value has fallen to `newFace`. Release any
+   * settlement above it: cash first, then credit, then points. Cash and credit
+   * are taken from the most recently settled source first, and every released
+   * amount is restored to its original source. Released cash per receipt is
+   * accumulated in `released`, in the order sources were first met.
+   */
+  releaseSettlement(
+    c: Context,
+    charge: { id: string },
+    newFace: number,
+    sourceId: string,
+    released: Map<string, number>,
+  ) {
+    const cash = this.accountsRepository.cashForCharge(charge.id);
+    const credits = this.creditsRepository.appliedToCharge(charge.id);
+    const rewards = this.rewardsRepository.redeemedForCharge(charge.id);
+    let overage = Math.max(0, cash + credits + rewards - newFace);
+    for (const allocation of this.accountsRepository.cashByReceiptForCharge(
+      charge.id,
+    )) {
+      const take = Math.min(overage, allocation.n);
+      if (!take) continue;
+      this.accountsRepository.insertAllocation(c, {
+        id: randomUUID(),
+        customer_id: c.customerId,
+        receipt_id: allocation.receipt_id,
+        charge_id: charge.id,
+        amount_paise: -take,
+        action_id: c.id,
+        created_at: c.now,
+      });
+      released.set(
+        allocation.receipt_id,
+        (released.get(allocation.receipt_id) ?? 0) + take,
+      );
+      overage -= take;
+    }
+    for (const application of this.creditsRepository.creditByNoteForCharge(
+      charge.id,
+    )) {
+      const take = Math.min(overage, application.n);
+      if (!take) continue;
+      this.creditsRepository.insertApplication(c, {
+        id: randomUUID(),
+        customer_id: c.customerId,
+        credit_note_id: application.credit_note_id,
+        charge_id: charge.id,
+        amount_paise: -take,
+        action_id: c.id,
+        created_at: c.now,
+      });
+      overage -= take;
+    }
+    if (overage > 0) {
+      if (overage > rewards)
+        fail(
+          'SETTLEMENT_MISMATCH',
+          'The settlement cannot be released against its source documents',
+        );
+      this.rewardsRepository.insertRedemption(c, {
+        id: randomUUID(),
+        customer_id: c.customerId,
+        charge_id: charge.id,
+        points: -overage,
+        action_id: c.id,
+        created_at: c.now,
+      });
+      this.rewardsRepository.insertPosting(c, {
+        id: randomUUID(),
+        customer_id: c.customerId,
+        line_key: null,
+        bucket: 'AVAILABLE',
+        points_delta: overage,
+        source_id: sourceId,
+        action_id: c.id,
+        created_at: c.now,
+      });
+      this.rewardsRepository.insertPosting(c, {
+        id: randomUUID(),
+        customer_id: c.customerId,
+        line_key: null,
+        bucket: 'REDEEMED',
+        points_delta: -overage,
+        source_id: sourceId,
+        action_id: c.id,
+        created_at: c.now,
+      });
+    }
+  }
   summary(customerId: string): CustomerSummary {
     const customer = this.customersRepository.findById(customerId);
     if (!customer) throw new NotFoundException('Customer not found');
