@@ -1,0 +1,1 @@
+{"version":3,"file":"session-cookie.js","sourceRoot":"","sources":["../../src/auth/session-cookie.ts"],"names":[],"mappings":"AAIA,MAAM,CAAC,MAAM,cAAc,GAAG,aAAa,CAAC;AAC5C,MAAM,UAAU,aAAa,CAC3B,MAAwC;IAExC,OAAO;QACL,QAAQ,EAAE,IAAI;QACd,MAAM,EAAE,MAAM,CAAC,GAAG,CAAC,UAAU,EAAE,EAAE,KAAK,EAAE,IAAI,EAAE,CAAC,KAAK,YAAY;QAChE,QAAQ,EAAE,QAAQ;QAClB,IAAI,EAAE,MAAM;KACb,CAAC;AACJ,CAAC"}

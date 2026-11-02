@@ -1,0 +1,1 @@
+{"version":3,"file":"workspace.model.js","sourceRoot":"","sources":["../../src/workspace/workspace.model.ts"],"names":[],"mappings":"AAEA,MAAM,CAAC,MAAM,qBAAqB,GAG9B;IACF,KAAK,EAAE;QACL,KAAK,EAAE,iBAAiB;QACxB,WAAW,EACT,0FAA0F;KAC7F;IACD,QAAQ,EAAE;QACR,KAAK,EAAE,cAAc;QACrB,WAAW,EACT,yFAAyF;KAC5F;CACF,CAAC"}
